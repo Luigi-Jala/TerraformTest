@@ -6,6 +6,13 @@ terraform {
       version = "~> 3.0"
     }
   }
+
+  backend "azurerm" {
+    resource_group_name  = "quizarena-ops-rg"
+    container_name       = "terraform-state"
+    key                  = "production.terraform.tfstate"
+    # storage_account_name must be dynamically via command -backend-config="storage_account_name=<storage_account_name>"
+  }
 }
 
 provider "azurerm" {
