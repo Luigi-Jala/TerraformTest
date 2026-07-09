@@ -1,5 +1,5 @@
 resource "azurerm_resource_group" "backend_rg" {
-  name     = "quizarena-backend-rg"
+  name     = var.resource_group_name
   location = var.global_location
 }
 

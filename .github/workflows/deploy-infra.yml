@@ -5,8 +5,13 @@ on:
     branches:
       - main
 
+# Definición centralizada para el backend de producción
 env:
-  TF_STATE_STORAGE_ACCOUNT: "quizarenatfstate2026" 
+  PROD_STORAGE_ACCOUNT: "quiztfstateproduction"
+  PROD_RESOURCE_GROUP: "quizarena-production-rg"
+  PROD_CONTAINER: "terraform-state"
+  PROD_STATE_KEY: "production.terraform.tfstate"
+  PROD_LOCATION: "centralus"
 
 jobs:
   terraform:
@@ -22,13 +27,24 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Ensure Backend Storage Exists
+        run: |
+          az group create --name "${{ env.PROD_RESOURCE_GROUP }}" --location "${{ env.PROD_LOCATION }}"
+          az storage account create --resource-group "${{ env.PROD_RESOURCE_GROUP }}" --name "${{ env.PROD_STORAGE_ACCOUNT }}" --sku Standard_LRS --encryption-services blob
+          az storage container create --name "${{ env.PROD_CONTAINER }}" --account-name "${{ env.PROD_STORAGE_ACCOUNT }}"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.9.0"
 
       - name: Terraform Init
-        run: terraform init -backend-config="storage_account_name=${{ env.TF_STATE_STORAGE_ACCOUNT }}"
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ env.PROD_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ env.PROD_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ env.PROD_CONTAINER }}" \
+            -backend-config="key=${{ env.PROD_STATE_KEY }}"
 
       - name: Terraform Apply
         run: terraform apply -var="ai_api_key_secret=${{ secrets.AI_API_KEY_SECRET }}" -auto-approve
