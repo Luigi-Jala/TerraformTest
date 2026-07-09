@@ -5,6 +5,11 @@ on:
     branches:
       - main
 
+# Requerido obligatoriamente para la autenticación por OIDC
+permissions:
+  id-token: write
+  contents: read
+
 env:
   PROD_STORAGE_ACCOUNT: "quiztfstateproduction"
   PROD_RESOURCE_GROUP: "quizarena-production-rg"
@@ -21,10 +26,13 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Login moderno usando OIDC
       - name: Azure Login
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Ensure Backend Storage Exists
         run: |
@@ -32,6 +40,7 @@ jobs:
           az storage account create --resource-group "${{ env.PROD_RESOURCE_GROUP }}" --name "${{ env.PROD_STORAGE_ACCOUNT }}" --sku Standard_LRS --encryption-services blob
           az storage container create --name "${{ env.PROD_CONTAINER }}" --account-name "${{ env.PROD_STORAGE_ACCOUNT }}"
 
+      # El Setup oficial mapea automáticamente las variables ARM_ si detecta el login previo por OIDC
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -41,10 +50,10 @@ jobs:
       - name: Terraform Init
         working-directory: ./Terraform
         env:
-          ARM_CLIENT_ID: ${{ jsonParse(secrets.AZURE_CREDENTIALS).clientId }}
-          ARM_CLIENT_SECRET: ${{ jsonParse(secrets.AZURE_CREDENTIALS).clientSecret }}
-          ARM_SUBSCRIPTION_ID: ${{ jsonParse(secrets.AZURE_CREDENTIALS).subscriptionId }}
-          ARM_TENANT_ID: ${{ jsonParse(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true # Le avisa a Terraform que use el flujo moderno de OIDC
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ env.PROD_RESOURCE_GROUP }}" \
@@ -55,8 +64,8 @@ jobs:
       - name: Terraform Apply
         working-directory: ./Terraform
         env:
-          ARM_CLIENT_ID: ${{ jsonParse(secrets.AZURE_CREDENTIALS).clientId }}
-          ARM_CLIENT_SECRET: ${{ jsonParse(secrets.AZURE_CREDENTIALS).clientSecret }}
-          ARM_SUBSCRIPTION_ID: ${{ jsonParse(secrets.AZURE_CREDENTIALS).subscriptionId }}
-          ARM_TENANT_ID: ${{ jsonParse(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
         run: terraform apply -var="ai_api_key=${{ secrets.AI_API_KEY_SECRET }}" -auto-approve
