@@ -37,8 +37,10 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.9.0"
+          terraform_wrapper: false
 
       - name: Terraform Init
+        working-directory: ./Terraform
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ env.PROD_RESOURCE_GROUP }}" \
@@ -47,4 +49,5 @@ jobs:
             -backend-config="key=${{ env.PROD_STATE_KEY }}"
 
       - name: Terraform Apply
-        run: terraform apply -var="ai_api_key_secret=${{ secrets.AI_API_KEY_SECRET }}" -auto-approve
+        working-directory: ./Terraform
+        run: terraform apply -var="ai_api_key=${{ secrets.AI_API_KEY_SECRET }}" -auto-approve
