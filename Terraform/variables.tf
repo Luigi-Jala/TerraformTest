@@ -1,6 +1,12 @@
+variable "environment" {
+  type        = string
+  description = "El entorno actual (dev, prod, etc.)"
+  default     = "dev"
+}
+
 variable "resource_group_name" {
   type    = string
-  default = "quizarena-dev-rg"
+  default = "quiz-app-dev-rg"
 }
 
 variable "global_location" {

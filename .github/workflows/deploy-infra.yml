@@ -5,17 +5,23 @@ on:
     branches:
       - main
 
-# Requerido obligatoriamente para la autenticación por OIDC
+# Requerido para la autenticación por OIDC
 permissions:
   id-token: write
   contents: read
 
 env:
-  PROD_STORAGE_ACCOUNT: "quiztfstateproduction"
-  PROD_RESOURCE_GROUP: "quizarena-production-rg"
-  PROD_CONTAINER: "terraform-state"
-  PROD_STATE_KEY: "production.terraform.tfstate"
+  ENVIRONMENT: "prod"
+
+  # App variables
+  PROD_APP_RESOURCE_GROUP: "quiz-app-prod-rg"
   PROD_LOCATION: "centralus"
+
+  # Devops variables
+  PROD_DEVOPS_RESOURCE_GROUP: "quiz-devops-prod-rg"
+  PROD_DEVOPS_STORAGE_ACCOUNT: "quiztfstateprod"
+  PROD_DEVOPS_CONTAINER: "terraform-state"
+  PROD_DEVOPS_STATE_KEY: "production.terraform.tfstate"
 
 jobs:
   terraform:
@@ -36,9 +42,9 @@ jobs:
 
       - name: Ensure Backend Storage Exists
         run: |
-          az group create --name "${{ env.PROD_RESOURCE_GROUP }}" --location "${{ env.PROD_LOCATION }}"
-          az storage account create --resource-group "${{ env.PROD_RESOURCE_GROUP }}" --name "${{ env.PROD_STORAGE_ACCOUNT }}" --sku Standard_LRS --encryption-services blob
-          az storage container create --name "${{ env.PROD_CONTAINER }}" --account-name "${{ env.PROD_STORAGE_ACCOUNT }}"
+          az group create --name "${{ env.PROD_DEVOPS_RESOURCE_GROUP }}" --location "${{ env.PROD_LOCATION }}"
+          az storage account create --resource-group "${{ env.PROD_DEVOPS_RESOURCE_GROUP }}" --name "${{ env.PROD_DEVOPS_STORAGE_ACCOUNT }}" --sku Standard_LRS --encryption-services blob
+          az storage container create --name "${{ env.PROD_DEVOPS_CONTAINER }}" --account-name "${{ env.PROD_DEVOPS_STORAGE_ACCOUNT }}"
 
       # El Setup oficial mapea automáticamente las variables ARM_ si detecta el login previo por OIDC
       - name: Setup Terraform
@@ -56,10 +62,10 @@ jobs:
           ARM_USE_OIDC: true # Le avisa a Terraform que use el flujo moderno de OIDC
         run: |
           terraform init \
-            -backend-config="resource_group_name=${{ env.PROD_RESOURCE_GROUP }}" \
-            -backend-config="storage_account_name=${{ env.PROD_STORAGE_ACCOUNT }}" \
-            -backend-config="container_name=${{ env.PROD_CONTAINER }}" \
-            -backend-config="key=${{ env.PROD_STATE_KEY }}"
+            -backend-config="resource_group_name=${{ env.PROD_DEVOPS_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ env.PROD_DEVOPS_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ env.PROD_DEVOPS_CONTAINER }}" \
+            -backend-config="key=${{ env.PROD_DEVOPS_STATE_KEY }}"
 
       - name: Terraform Apply
         working-directory: ./Terraform
@@ -68,4 +74,11 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           ARM_USE_OIDC: true
-        run: terraform apply -var="ai_api_key=${{ secrets.AI_API_KEY_SECRET }}" -auto-approve
+
+        run: |
+          terraform apply \
+            -var="environment=${{ env.ENVIRONMENT }}" \
+            -var="resource_group_name=${{ env.PROD_APP_RESOURCE_GROUP }}" \
+            -var="global_location=${{ env.PROD_LOCATION }}" \
+            -var="ai_api_key=${{ secrets.AI_API_KEY_SECRET }}" \
+            -auto-approve
